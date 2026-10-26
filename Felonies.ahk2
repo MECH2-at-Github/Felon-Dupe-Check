@@ -1,0 +1,260 @@
+﻿#SingleInstance Force
+#Warn Unreachable, Off
+#Requires AutoHotkey v2+
+
+; v2 required for Map()
+
+;; 〓〓〓〓〓〓〓〓〓〓 USER DEFINED TEXT REMOVALS 〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓
+
+;; A list of starting text for lines that need to be removed from the text file.
+;; MUST: 1. Be in quotes. 2. Be followed by a comma.
+;; Any of the characters in the set \.*?+[{|()^$ must be preceded by a backslash to be seen as literal.
+regExRemovals := [
+    "ST. LOUIS COUNTY SHERIFF'S OFFICE",
+    "Issued Date Bail",
+    "ACTIVE WARRANT LIST",
+    "Felony & Gross Misdemeanor Warrants",
+    "",
+]
+
+;; 〓〓〓〓〓〓〓〓〓〓 OUTPUT FILE SAVE LOCATION 〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓
+
+outputFolder := A_Desktop
+
+;; Options formatting for where duplicate felon list is saved:
+;; Desktop:             A_Desktop
+;; Desktop subfolder:   A_Desktop "\subfoldername"
+;; Documents:           A_Documents
+;; Documents subfolder: A_Documents "\subfoldername"
+;; Script folder:       A_ScriptDir
+
+;; To change: The outputFolder line should look like these examples:
+;; outputFolder := A_Desktop
+;; or
+;; outputFolder := A_Documents "\dupe felon list"
+;; A_Desktop or A_Documents must not be in quotes. Subfolder names must be in quotes.
+
+;; 〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓 Editing anything below this line will likely break the script. 〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓
+;; 〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓〓
+
+if (!DirExist(outputFolder)) {
+    DirCreate(outputFolder)
+}
+
+;; Declaring Global variables
+regExEnd := ".*(?:\r\n|\r|\n)*|", regExRepStr := ""
+arrayOfFelonMaps := [], felonArray := [], csvPersonArray := [], csvFile := []
+dateYmd := FormatTime(, "yyyy-M-d")
+felonFileName := outputFolder "\Duplicate felon list " . dateYmd . ".txt"
+separatorLine := "`n`n=======================================================================================`n", cs := ", "
+;;
+
+For (removalString in regExRemovals) { ; simulating JS' .join('|')
+    regExRepStr .= removalString . regExEnd ; adding 'end of line' and pipe separator
+}
+regExRepStr := RTrim(regExRepStr, "|") ; removes pipe separator after the last entry
+
+; selectedFiles := FileSelect("M3",, "Select TEXT files containing the felon lists, and (optionally) a CSV file of the MAXIS list.")
+selectedFiles := ["C:\Users\mccormickj\Desktop\felon list\FeloniesStart.txt", "C:\Users\mccormickj\Desktop\felon list\FeloniesStart2.txt"]
+if (selectedFiles.Length < 2) {
+    MsgBox("Script cannot run without text files.")
+    ;ExitApp
+    Return
+}
+
+; Files come in as [selectedFiles]. .csv moved to [csvFile]. Filtered to felons. Name and age extracted, added to temp map. At end of each file, pushes map to array.
+; Next step: Check each map against each other. Name needs to appear on more than one felon list.
+; Create map for duplicates. duplicateFelonMap := Map().
+; felonMap: Name, [OccurAgeArr]. if (felonMap.Has(newFelon)) { if (OccurAgeArr[2].includes(newFelonAge)) { continue } else { Age.Push(newFelonAge) } }
+; dupeFelonMap: felonMap.map(
+; maxisMap: Name, [caseNumber]. if (maxisMap.Has(newPerson)) { if (Age.includes(newPersonCaseNumber)) { continue } else { caseNumber.Push(newPersonCaseNumber) } }
+; overlap: map vs map. If felonMap.Has(maxisMap) { overlapArray
+; currentMap := arrayOfFelonMaps.RemoveAt(i) ; prevents checking maps more than once
+; if (arrayOfFelonMaps.length() > 0)
+; iterate through arrayOfFelonMaps.
+; match := arrayOfFelonMaps[arrayOfFelonMapsI].get(currentMapI) ; probably gets the value, which is the person's age?
+; if (match) { duplicateFelonMap[ ; need to figure out what happens when iterating a map.
+
+For (i, fileName in selectedFiles) {
+    fileExt := ""
+    ageRegEx := ""
+    SplitPath fileName,,,&fileExt
+    if (StrLower(fileExt) == "csv") {
+        csvFile := selectedFiles.RemoveAt(i)
+        Continue
+    }
+    tempFelonMap := Map() ; declaring a Map (only allows unique entries)
+    textContent := FileRead(fileName)
+    textContent := RegExReplace(textContent, "i)" . regExRepStr)
+    textContent := StrReplace(textContent, "Name: ", "¢") ; Replace "Name: " with a dummy character not found in file
+    Loop parse, textContent, "¢" { ; Loop through each felon text file, splitting at dummy character
+        if (StrLen(A_LoopField) && InStr(A_LoopField, "Felon")) { ; if string has length, and "Felon" is found in the string
+            ageYears := "", generationalName := "" ; declare age, generationalName as string
+            ageFound := RegExMatch(A_LoopField, "i)Age: (?<digits>\d+)", &ageYears) ; find and store age to ageYears
+            ageYears := ageFound ? ageYears.digits : "??" ; set default value for ageYears if needed
+            trimStr := RegExReplace(A_LoopField, "(?:\r\n|\r|\n).*") ; discard everything after the name line (should be first line)
+            ; genNameFound := RegExMatch(A_LoopField, "i)\b(JR|SR|II|III)\b", &generationalName)
+            ; trimStr := RegExReplace(trimStr, "i), (JR|SR|II|III)", " $1") ; standardize generational names by removing the comma between name and JR/SR/II/III
+            trimStr := StrUpper(Trim(StrReplace(trimStr, ", ", ","))) ; change comma space in name to comma to match MAXIS, sets to uppercase
+            trimStr := RegExReplace(trimStr, " .*") ; removes everything after LastName,FirstName
+            trimStr := RegExReplace(StrUpper(trimStr), ", (\w+) .*", "$1") ; change comma space in name to comma to match MAXIS, sets to uppercase, removes everything after LastName,FirstName
+            ageList := tempFelonMap.Get(trimStr, "") ; check tempFelonMap for the name, store resulting age or ""
+            if (StrLen(ageList) && ageYears ~= ageList) { ; if ageYears is found in string ageList...
+                Continue ; ...go to next entry
+            }
+            tempFelonMap.Set(trimStr, Trim(ageList "," ageYears, ",")) ; else add person + trimmed ageList to Map
+        }
+    }
+    arrayOfFelonMaps.Push(tempFelonMap)
+}
+;For (i, fileName in selectedFiles) {
+    ;fileExt := ""
+    ;SplitPath fileName,,,&fileExt
+
+    ;if (StrLower(fileExt) == "csv") {
+        ;csvFile.Push(selectedFiles.RemoveAt(i))
+        ;Continue
+    ;}
+    ;textContent := FileRead(fileName)
+    ;textContent := RegExReplace(textContent, "i)" . regExRepStr)
+    ;textContent := StrReplace(textContent, "Name: ", "¢") ; Replace "Name: " with a character not found in file
+    ;Loop parse, textContent, "¢" { ; split at said character
+        ;if (StrLen(A_LoopField) && InStr(A_LoopField, "Felon")) { ; if string has length, and "Felon" is found in the string
+            ;age := ""
+            ;ageFound := RegExMatch(A_LoopField, "Age: \d+", &age) ; find and store age
+            ;trimStr := RegExReplace(A_LoopField, "(?:\r\n|\r|\n).*") ; discard everything after the first (name) line
+            ;trimStr := RegExReplace(trimStr, " Age:.*") ; discard everything starting with " Age:"
+            ;trimStr := RegExReplace(trimStr, ", (JR|SR|II|III)", " $1") ; removes the comma between name and JR/SR/II/III
+            ;trimStr := StrReplace(trimStr, ", ", ",") ; changes comma space to comma to match MAXIS, and causes the name to end at ", "
+            ;felonArray.Push( Trim(StrUpper(trimStr)) ", " (ageFound ? age[] : ", Age: ??") )
+        ;}
+    ;}
+;}
+
+For (felonMap in arrayOfFelonMaps) {
+    ; for entry in map {
+        ; foundEntry := joinedFelonMap.Get(entry, "")
+        ; if (!foundEntry) {
+        ;   joinedFelonMap.Set(entry)
+        ; } else {
+            ; foundEntry ;;;;;;;;;;;;;;;;;;;;; left off here. Need to add age to existing entry's value ;;;;;;;;;;;;;;;;;;;;
+        ; }
+    ; }
+}
+
+objToString(object, includeKey := true, includeValue := true) { ; AHK arrays are also objects ; temporary function to get feedback
+    For key, value in object {
+        output .= (includeKey ? key : '') (includeKey && includeValue ? " = " : '') (includeValue ? value : '') "`n"
+    }
+    Return Trim(output, "`n")
+}
+mapToString(object) {
+    output := ""
+    For (value in object) {
+        output .= value "`n"
+    }
+    Return Trim(output, "`n")
+}
+FindDuplicateFelons(Arrays*) { ; PROBLEM: What if person appears on list twice? Should array 1 be mapped, and array 2 be compared?
+    Counts := Map() ; create object named Counts
+    felonMap := Map()
+    Duplicates := [] ; create simple array named Duplicates
+    for (Arr in Arrays) { ; in each array
+        for (Person in Arr) { ; for each Person
+            Person := Trim(Person) ; remove spaces around name
+            Counts[Person] := (Counts.Has(Person) ? Counts[Person] + 1 : 1) ; if Person doesn't already exist, set it's value to 1. Otherwise, add 1. 
+            if (Counts[Person] == 2) { ; if the value of the Person is now 2...
+                felonMap[Person] := 1 ; add it to the duplicate array.
+                ;Duplicates.Push(Person) ; add it to the duplicate array.
+            }
+        }
+    }
+    return felonMap
+    ;return Duplicates
+}
+;felonDuplicatesArray := FindDuplicateFelons(felonArray)
+felonDuplicatesMap := FindDuplicateFelons(felonArray)
+;felonDuplicatesString := objToString(felonDuplicatesArray)
+felonDuplicatesString := objToString(felonDuplicatesMap)
+
+felonFileObj := FileOpen(felonFileName, "w")
+felonFileObj.write("Duplicate felon List, generated: " dateYmd "`n`n" felonDuplicatesString)
+
+if (csvFile.Length == 0) {
+    felonFileObj.close()
+    openPrompt := MsgBox("Felon list generated. MAXIS list not provided.`n`nOpen " felonFileName " now?", "Felon List", "YesNo")
+    ; openPrompt := MsgBox("Felon list generated. MAXIS list not provided.`n`nOpen " outputFolder "\Duplicate felon list " . dateYmd . ".txt now?", "Felon List", "YesNo")
+    if (openPrompt == "Yes") {
+        Run(felonFileName)
+    }
+    ExitApp
+}
+
+;csvText := FileRead(csvFile[1])
+;Loop parse, csvText, "`n" {
+Loop parse, FileRead(csvFile), "`n" {
+    nameMatch := []
+    nameInField := RegExMatch(A_LoopField, '".+"', &nameMatch)
+    if (!nameInField) {
+        continue
+    }
+    personName := Trim(nameMatch[], '"') ; remove quotes
+    personName := Trim(personName) ; remove outide whitespace
+    personName := RegExReplace(personName, "\s\w\b") ; remove space + standalone letter (typically middle initial)
+    ; personName := RegExReplace(personName, "\b\w\b") ; remove standalone letter (typically middle initial)
+    csvPersonArray.Push(Trim(personName))
+}
+
+confidenceLookup := Map(
+    "High", "",
+    "Low", ","
+)
+
+For key, confidenceLevel in ["High", "Medium", "Low"] {
+    ; FindDuplicatesTruncated(confidenceLevel, felonDuplicatesArray, csvPersonArray)
+}
+
+;FindDuplicatesTruncated(confidenceLevel, Arrays*) { ; PROBLEM: What if person appears on list twice? Should felon array be mapped, and MAXIS array be compared?
+FindDuplicatesTruncated(confidenceLevel, felonDuplicatesArray, csvPersonArray) { ; PROBLEM: What if person appears on list twice? Should felon array be mapped, and MAXIS array be compared? Doesn't seem to be enough MAXIS data to do a confidence level, aside from LastnameF
+    SplitChar := confidenceLookup[confidenceLevel]
+    Counts := Map() ; create object named Counts
+    Duplicates := [] ; create simple array named Duplicates
+    Arrays := [] ; temp declaration to make the linter happy
+    for (Arr in Arrays) { ; in each array
+    
+        for (Person in Arr) { ; for each Person ; PROBLEM: Should all 3 confidence levels be done at once? Start at Low; if match, add to lowConfidence array and move to Medium?
+            Person := SubStr(Trim(Person), 1, 20) ; remove spaces around name & make felon list names no longer than MAXIS names.
+            Person := StrLen(SplitChar) ? StrSplit(Person, SplitChar) : Person
+            Counts[Person] := (Counts.Has(Person) ? Counts[Person] + 1 : 1) ; if Person doesn't already exist, set it's value to 1. Otherwise, add 1. 
+            if (Counts[Person] == 2) { ; if the value of the Person is now 2...
+                Duplicates.Push(Person) ; add it to the duplicate array.
+            }
+        }
+    }
+    felonFileObj.write(separatorLine "`nConfidence level: " confidenceLevel "`n" objToString(Duplicates))
+}
+
+felonFileObj.close()
+
+openPrompt := MsgBox("Felon list generated and compared to MAXIS list.`n`nOpen " felonFileName " now?", "Felon List", "YesNo")
+; openPrompt := MsgBox("Felon list generated and compared to MAXIS list.`n`nOpen " outputFolder "\Duplicate felon list " . dateYmd . ".txt now?", "Felon List", "YesNo")
+if (openPrompt == "Yes") {
+    Run(felonFileName)
+}
+ExitApp
+
+Return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
